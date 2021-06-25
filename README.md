@@ -1,4 +1,4 @@
-# Implementation and research of meta-learning algorithms with python
+# Implementation and Research of meta-learning algorithms with python
 
 We partition meta learning problems into three parts: model-based, metric-based and optimization-based. 
 

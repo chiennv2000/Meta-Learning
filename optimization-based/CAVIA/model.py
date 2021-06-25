@@ -1,5 +1,5 @@
 import numpy as np
-from utils import *
+from utils import sigmoid, cross_entropy
 from sklearn.model_selection import train_test_split
 
 np.random.seed(42)
@@ -30,49 +30,67 @@ class DataGenerator(object):
     def __getitem__(self, i):
         return self.task[i]
 
-class MAML(object):
+class CAVIA(object):
     def __init__(self, 
                  num_tasks,
                  num_samples,
-                 input_dim=50):
+                 input_dim=50,
+                 context_dim=50):
         
-        self.num_taks = num_tasks
+        self.num_tasks = num_tasks
         self.num_samples = num_samples
+        self.context_dim = context_dim
 
-        # meta-learner
-        self.theta = np.random.randn(input_dim)
+        # meta-learner - shared parameters
+        self.theta = np.random.randn(input_dim + context_dim) * 0.01
+        
+        self.context_phi = np.zeros((num_tasks, context_dim))
         
         # data generator
         self.tasks = DataGenerator(num_tasks, num_samples, input_dim)
     
+    def _set_context_phi_zero(self):
+        self.context_phi = np.zeros((self.num_tasks, self.context_dim))
+        
     def inner_loop(self, alpha):
-        theta_ = []
+        self._set_context_phi_zero()
+        
         for i in range(len(self.tasks)):
             X_train, _, y_train, _ = self.tasks[i]
+            
+            # Concat x with context parameters
+            X_train = np.concatenate((X_train, np.stack([self.context_phi[i]] * X_train.shape[0])), axis=1)
             y_hat = sigmoid(X_train.dot(self.theta))
             
-            loss = cross_entropy(y_train, y_hat)
+            loss = cross_entropy(y_hat, y_train)
             
-            d_theta = 1.0/y_hat.shape[0] * X_train.T.dot(y_hat - y_train)
-            theta_.append(self.theta - alpha*d_theta)
-        
-        return theta_
+            d_context = (y_hat - y_train).reshape(-1, 1).dot(self.theta.reshape(-1, 1).T)[:, - self.context_dim:]
+            d_context = np.mean(d_context, axis=0)
+            
+            # Update context parameters
+            self.context_phi[i] -= alpha * d_context
+            
     
-    def outer_loop(self, task_theta_):
+    def outer_loop(self, beta):
         meta_gradient = np.zeros(self.theta.shape)
-        loss = 0.0
+        loss = 0.0 
+        
         for i in range(len(self.tasks)):
             _, X_test, _, y_test = self.tasks[i]
             
-            y_hat = sigmoid(X_test.dot(task_theta_[i]))
-            loss += cross_entropy(y_test, y_hat)
+            X_test = np.concatenate((X_test, np.stack([self.context_phi[i]] * X_test.shape[0])), axis=1)
+            y_hat = sigmoid(X_test.dot(self.theta))
             
-            meta_gradient += 1.0/y_hat.shape[0] * X_test.T.dot(y_hat - y_test)
-        
+            loss += cross_entropy(y_hat, y_test)
+            
+            meta_gradient += X_test.T.dot(y_hat - y_test) * 1.0 / X_test.shape[0]
+            
         meta_gradient /= len(self.tasks)
-        loss /= len(self.tasks)
+        # Update shared parameters
+        self.theta -= beta*meta_gradient
         
-        return meta_gradient, loss
+        loss /= len(self.tasks)
+        return loss
     
     def train(self,
               num_epochs=10000,
@@ -81,11 +99,8 @@ class MAML(object):
         
         print("Training....")
         for epoch in range(num_epochs):
-            theta_ = self.inner_loop(alpha)
-            meta_gradient, loss = self.outer_loop(theta_)
-            
-            # update meta-learner
-            self.theta -= beta*meta_gradient
+            self.inner_loop(alpha)
+            loss = self.outer_loop(beta)
             
             if epoch % int((num_epochs / 10)) == 0:
                 print("Epoch {}: Loss {}\n".format(epoch, loss))
