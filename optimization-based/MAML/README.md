@@ -1,4 +1,4 @@
-# Model-Agnostic Meta-Learning for fast adaptation of deep networks.
+# Model-Agnostic Meta-Learning for fast adaptation of deep networks from scratch.
 
 We will to find the optimal model parameter that is generalizable across tasks. 
 MAML uses two loops:
@@ -12,6 +12,11 @@ And the final goal is to try to find the better initial parameter.
 
 # Usage tutorial
 First you need to install numpy.
+
+```bash
+pip install numpy
+```
+
 To train the model
 ```bash
 python train.py
