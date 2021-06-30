@@ -41,11 +41,12 @@ class MAML(object):
 
         # meta-learner
         self.theta = np.random.randn(input_dim) * 0.1
+        self.alpha = np.random.randn(input_dim) * 0.1
         
         # data generator
         self.tasks = DataGenerator(num_tasks, num_samples, input_dim)
     
-    def inner_loop(self, alpha):
+    def inner_loop(self):
         theta_ = []
         for i in range(len(self.tasks)):
             X_train, _, y_train, _ = self.tasks[i]
@@ -54,7 +55,7 @@ class MAML(object):
             loss = cross_entropy(y_train, y_hat)
             
             d_theta = 1.0/y_hat.shape[0] * X_train.T.dot(y_hat - y_train)
-            theta_.append(self.theta - alpha*d_theta)
+            theta_.append(self.theta - self.alpha*d_theta)
         
         return theta_
     
@@ -76,16 +77,16 @@ class MAML(object):
     
     def train(self,
               num_epochs=10000,
-              alpha=1e-3,
               beta=1e-3):
         
         print("Training....")
         for epoch in range(num_epochs):
-            theta_ = self.inner_loop(alpha)
+            theta_ = self.inner_loop()
             meta_gradient, loss = self.outer_loop(theta_)
             
             # update meta-learner
             self.theta -= beta*meta_gradient
+            self.alpha -= beta*meta_gradient
             
             if epoch % int((num_epochs / 10)) == 0 or epoch == num_epochs - 1:
                 print("Epoch {}: Loss {}\n".format(epoch, loss))
