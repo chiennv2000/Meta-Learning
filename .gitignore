@@ -3,5 +3,4 @@ __pycache__
 *.gz
 *.pt
 *.txt
-*.png
 *.pyc
